@@ -1,0 +1,94 @@
+
+worker_processes  1;
+
+
+events {
+}
+
+
+http {
+	include mime.types;
+		
+
+	fastcgi_cache_path /tmp/nginx_cache levels=1:2 keys_zone=microcache:10m max_size=500m;
+        fastcgi_cache_key "$scheme$request_method$host$request_uri";
+	add_header Microcache-Status $upstream_cache_status;
+
+
+	#limit concurrency
+	# limit_req_zone $binary_remote_addr zone=one_per_sec:5m rate=1r/s;
+	geoip_country /etc/nginx/geoip/GeoIP.dat;
+	geoip_city /etc/nginx/geoip/GeoLiteCity.dat;
+	
+	server {
+
+		
+		listen 80;
+		server_name 206.189.85.233;
+		root /sites/wordpress;
+		
+		index index.php index.html;
+
+
+		gzip on;
+		gzip_min_length 100;
+                gzip_comp_level 3; 
+                gzip_types text/plain text/css text/javascript;		
+		gzip_disable "msie6";
+
+		location /geo_country {
+			return 200 "You are visiting from $geoip_country_name, $geoip_city";
+		}
+
+		location /geo_city {
+                        return 200 "Visiting from $geoip_city";
+                }
+
+		location / {
+			try_files $uri $uri/ /index.php?$args;
+		}
+
+		location  ~* \.(css|js|jpg|png) {
+		   access_log off;
+		    expires 1M;
+		    add_header Pragma public;
+		    add_header Cache-Control public;
+		    add_header Vary Accept-Encoding;
+
+
+		    #limit 
+		    #limit_req zone=one_per_sec burst=5;
+
+		}
+		
+		location ~ \.php$ {
+			include fastcgi_params;
+			include fastcgi.conf;
+			
+			fastcgi_cache microcache;
+			fastcgi_cache_valid 60m;
+
+			fastcgi_pass 127.0.0.1:9000;
+		}
+		
+		# starts with, exact match use 'location = /greet'
+		# location /greet {
+		#	return 200 'Hello from Nginx location blocks';
+		# }
+		
+		# regex case sensitive, if need case in sensitive then change '~* /greet[0-9]'
+		# location ~/greet[0-9] {
+		#	return 200 'Hello from Nginx case sensitive regex';
+		# }
+
+		#location ^~ /greet{
+		#	return 200 'Hello from Nginx preference over regex | location block'
+		#}		
+
+		#location /downloads {
+		#	root /sites;
+		#	try_files $uri =404;
+		#}
+		
+	}
+}
